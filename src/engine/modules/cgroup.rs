@@ -29,6 +29,7 @@ impl ContainerCgroup {
             cgroup = cgroup
                 .memory()
                 .memory_hard_limit((mem_mib << 20) as i64)
+                .swappiness(0) // disallow usage of swap
                 .done();
         }
 

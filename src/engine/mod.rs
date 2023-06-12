@@ -1,11 +1,10 @@
 use std::{
     io::ErrorKind,
-    os::unix::process::CommandExt,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use anyhow::Context;
+use unshare::Command;
 
 mod config;
 mod modules;
@@ -15,6 +14,7 @@ pub use config::ContainerConfig;
 
 pub struct Container {
     cgroup: ContainerCgroup,
+    ns: ContainerNamespaces,
     _dir_bomb: DirBomb,
 }
 
@@ -44,11 +44,15 @@ impl Container {
         log::debug!("Creating container {}", id);
         let dir_bomb = DirBomb { path };
 
+        // Create namespaces
+        let ns = ContainerNamespaces::new().context("create namespaces")?;
+
         // Create cgroup
         let cgroup = ContainerCgroup::new(&id, &config).context("create cgroup")?;
 
         Ok(Container {
             cgroup,
+            ns,
             _dir_bomb: dir_bomb,
         })
     }
@@ -56,22 +60,24 @@ impl Container {
     pub fn run(&self) -> anyhow::Result<()> {
         let cgroup = self.cgroup.try_clone().context("clone cgroup instance")?;
 
-        let mut child = unsafe {
-            Command::new("/bin/bash")
-                .pre_exec(move || {
-                    let pid = std::process::id();
-                    log::debug!("Entered child process {}", pid);
-                    match cgroup.jail_me() {
-                        Ok(()) => Ok(()),
-                        Err(err) => {
-                            log::error!("Failed to add PID {} to cgroup: {:#}", pid, err);
-                            Err(std::io::Error::from(ErrorKind::Other))
-                        }
-                    }
-                })
-                .spawn()
-                .context("spawn child process")?
-        };
+        let mut command = Command::new("/bin/bash");
+        command.before_unfreeze(move |pid| {
+            log::debug!("Child process spawned as PID {}", pid);
+            match cgroup.jail_pid(pid) {
+                Ok(()) => Ok(()),
+                Err(err) => {
+                    log::error!("Failed to add PID {} to cgroup: {:#}", pid, err);
+                    Err(Box::new(std::io::Error::from(ErrorKind::Other)))
+                }
+            }
+        });
+        self.ns
+            .apply(&mut command)
+            .context("set child's namespaces")?;
+
+        let mut child = command
+            .spawn()
+            .map_err(|err| anyhow::anyhow!("spawn child process: {}", err))?;
         let status = child.wait().context("wait for child process")?;
         log::debug!("Child process exited with status {}", status);
         Ok(())

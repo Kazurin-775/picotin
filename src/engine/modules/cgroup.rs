@@ -44,8 +44,7 @@ impl ContainerCgroup {
         })
     }
 
-    pub fn jail_me(&self) -> anyhow::Result<()> {
-        let pid = std::process::id();
+    pub fn jail_pid(&self, pid: u32) -> anyhow::Result<()> {
         log::debug!("Adding PID {} to cgroup {}", pid, self.id);
         self.inner.add_task(CgroupPid::from(pid as u64))?;
         Ok(())

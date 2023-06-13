@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use engine::Container;
@@ -14,6 +16,9 @@ struct Cli {
 pub enum Commands {
     New {
         #[arg(long)]
+        root: Option<PathBuf>,
+
+        #[arg(long)]
         cpu_mul: Option<f32>,
         #[arg(long)]
         mem_mib: Option<u64>,
@@ -27,8 +32,16 @@ fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
     match cli.cmd {
-        Commands::New { cpu_mul, mem_mib } => {
-            let config = engine::ContainerConfig { cpu_mul, mem_mib };
+        Commands::New {
+            root,
+            cpu_mul,
+            mem_mib,
+        } => {
+            let config = engine::ContainerConfig {
+                root,
+                cpu_mul,
+                mem_mib,
+            };
             let container = Container::new(config).context("create container")?;
             container.run().context("run container")?;
         }

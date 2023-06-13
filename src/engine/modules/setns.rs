@@ -1,10 +1,18 @@
+use std::path::PathBuf;
+
 use unshare::{Command, GidMap, Namespace, UidMap};
 
-pub struct ContainerNamespaces {}
+use crate::engine::ContainerConfig;
+
+pub struct ContainerNamespaces {
+    root: Option<PathBuf>,
+}
 
 impl ContainerNamespaces {
-    pub fn new() -> anyhow::Result<ContainerNamespaces> {
-        Ok(ContainerNamespaces {})
+    pub fn new(config: &ContainerConfig) -> anyhow::Result<ContainerNamespaces> {
+        Ok(ContainerNamespaces {
+            root: config.root.clone(),
+        })
     }
 
     pub fn apply(&self, command: &mut Command) -> anyhow::Result<()> {
@@ -28,6 +36,14 @@ impl ContainerNamespaces {
                     count: 65536,
                 }],
             );
+
+        if let Some(root) = &self.root {
+            command.chroot_dir(root);
+            // We are not using pivot_root here, since that without overlayfs,
+            // we cannot guarantee that self.root is a mount point whose device
+            // is different from the current root directory.
+        }
+
         Ok(())
     }
 }

@@ -45,7 +45,7 @@ impl Container {
         let dir_bomb = DirBomb { path };
 
         // Create namespaces
-        let ns = ContainerNamespaces::new().context("create namespaces")?;
+        let ns = ContainerNamespaces::new(&config).context("create namespaces")?;
 
         // Create cgroup
         let cgroup = ContainerCgroup::new(&id, &config).context("create cgroup")?;

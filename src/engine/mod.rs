@@ -15,6 +15,7 @@ pub use config::ContainerConfig;
 pub struct Container {
     cgroup: ContainerCgroup,
     ns: ContainerNamespaces,
+    command: Option<PathBuf>,
     _dir_bomb: DirBomb,
 }
 
@@ -53,6 +54,7 @@ impl Container {
         Ok(Container {
             cgroup,
             ns,
+            command: config.command,
             _dir_bomb: dir_bomb,
         })
     }
@@ -60,7 +62,12 @@ impl Container {
     pub fn run(&self) -> anyhow::Result<()> {
         let cgroup = self.cgroup.try_clone().context("clone cgroup instance")?;
 
-        let mut command = Command::new("/bin/bash");
+        let mut command = Command::new(
+            self.command
+                .as_ref()
+                .map(AsRef::as_ref)
+                .unwrap_or(Path::new("/bin/bash")),
+        );
         command.before_unfreeze(move |pid| {
             log::debug!("Child process spawned as PID {}", pid);
             match cgroup.jail_pid(pid) {

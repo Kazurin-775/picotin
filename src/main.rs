@@ -22,6 +22,8 @@ pub enum Commands {
         cpu_mul: Option<f32>,
         #[arg(long)]
         mem_mib: Option<u64>,
+
+        command: Option<PathBuf>,
     },
 }
 
@@ -36,9 +38,11 @@ fn main() -> anyhow::Result<()> {
             root,
             cpu_mul,
             mem_mib,
+            command,
         } => {
             let config = engine::ContainerConfig {
                 root,
+                command,
                 cpu_mul,
                 mem_mib,
             };

@@ -33,7 +33,7 @@ pub enum Commands {
 
 fn main() -> anyhow::Result<()> {
     env_logger::builder()
-        .filter_level(log::LevelFilter::Debug)
+        .filter_module("picotin", log::LevelFilter::Debug)
         .init();
 
     let cli = Cli::parse();

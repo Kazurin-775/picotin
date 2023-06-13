@@ -22,6 +22,7 @@ impl ContainerNamespaces {
                 Namespace::Pid,
                 Namespace::Ipc,
                 Namespace::Mount,
+                Namespace::Net,
             ])
             .set_id_maps(
                 // Identity map

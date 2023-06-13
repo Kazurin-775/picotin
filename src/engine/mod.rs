@@ -7,10 +7,12 @@ use anyhow::Context;
 use unshare::Command;
 
 mod config;
+mod link;
 mod modules;
 use self::modules::*;
 
 pub use config::ContainerConfig;
+pub use link::add_veth_link;
 
 pub struct Container {
     info_path: PathBuf,

@@ -25,6 +25,10 @@ pub enum Commands {
 
         command: Option<PathBuf>,
     },
+    Link {
+        lhs: String,
+        rhs: String,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -48,6 +52,9 @@ fn main() -> anyhow::Result<()> {
             };
             let container = Container::new(config).context("create container")?;
             container.run().context("run container")?;
+        }
+        Commands::Link { lhs, rhs } => {
+            engine::add_veth_link(&lhs, &rhs)?;
         }
     }
     Ok(())

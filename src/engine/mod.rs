@@ -13,6 +13,7 @@ use self::modules::*;
 pub use config::ContainerConfig;
 
 pub struct Container {
+    info_path: PathBuf,
     cgroup: ContainerCgroup,
     ns: ContainerNamespaces,
     command: Option<PathBuf>,
@@ -43,7 +44,7 @@ impl Container {
             }
         };
         log::debug!("Creating container {}", id);
-        let dir_bomb = DirBomb { path };
+        let dir_bomb = DirBomb { path: path.clone() };
 
         // Create namespaces
         let ns = ContainerNamespaces::new(&config).context("create namespaces")?;
@@ -52,6 +53,7 @@ impl Container {
         let cgroup = ContainerCgroup::new(&id, &config).context("create cgroup")?;
 
         Ok(Container {
+            info_path: path,
             cgroup,
             ns,
             command: config.command,
@@ -68,8 +70,15 @@ impl Container {
                 .map(AsRef::as_ref)
                 .unwrap_or(Path::new("/bin/bash")),
         );
+        let pid_path = self.info_path.join("init_pid");
         command.before_unfreeze(move |pid| {
             log::debug!("Child process spawned as PID {}", pid);
+
+            if let Err(err) = std::fs::write(&pid_path, pid.to_string()) {
+                log::error!("Failed to write PID file: {}", err);
+                return Err(Box::new(err));
+            }
+
             match cgroup.jail_pid(pid) {
                 Ok(()) => Ok(()),
                 Err(err) => {

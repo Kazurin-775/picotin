@@ -1,8 +1,15 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    fs::File,
+    net::{IpAddr, Ipv4Addr},
+    os::fd::AsRawFd,
+    path::PathBuf,
+    sync::Arc,
+};
 
 use anyhow::Context;
 use async_executor::Executor;
 use futures_util::TryStreamExt;
+use nix::sched::CloneFlags;
 
 pub fn add_veth_link(lhs: &str, rhs: &str) -> anyhow::Result<()> {
     anyhow::ensure!(
@@ -120,6 +127,60 @@ async fn create_veth(
         .execute()
         .await
         .context("set rhs's netns")?;
+
+    log::debug!("Assigning IP address 192.168.1.1/24 to veth-{lhs}");
+    assign_ip_addr_in_ns(
+        lhs_pid,
+        &executor,
+        lhs_if_idx,
+        IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
+        24,
+    )
+    .await
+    .with_context(|| format!("assign IP address 192.168.1.1/24 to veth-{lhs}"))?;
+
+    log::debug!("Assigning IP address 192.168.1.2/24 to veth-{rhs}");
+    assign_ip_addr_in_ns(
+        rhs_pid,
+        &executor,
+        rhs_if_idx,
+        IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2)),
+        24,
+    )
+    .await
+    .with_context(|| format!("assign IP address 192.168.1.2/24 to veth-{rhs}"))?;
+
+    Ok(())
+}
+
+async fn assign_ip_addr_in_ns(
+    pid: u32,
+    executor: &Executor<'static>,
+    if_index: u32,
+    addr: IpAddr,
+    prefix_len: u8,
+) -> anyhow::Result<()> {
+    let old_ns = File::open("/proc/self/ns/net").context("open /proc/self/ns/net")?;
+    let new_ns = File::open(format!("/proc/{pid}/ns/net"))
+        .with_context(|| format!("open /proc/{pid}/ns/net"))?;
+
+    nix::sched::setns(new_ns.as_raw_fd(), CloneFlags::CLONE_NEWNET)
+        .context("switch to new network namespace")?;
+
+    // The netlink socket must be reopened inside the new namespace
+    let (conn, handle, _) =
+        rtnetlink::new_connection_with_socket::<netlink_proto::sys::SmolSocket>()
+            .context("reopen netlink socket")?;
+    executor.spawn(conn).detach();
+    handle
+        .address()
+        .add(if_index, addr, prefix_len)
+        .execute()
+        .await
+        .context("rtnetlink call")?;
+
+    nix::sched::setns(old_ns.as_raw_fd(), CloneFlags::CLONE_NEWNET)
+        .context("switch to old network namespace")?;
 
     Ok(())
 }

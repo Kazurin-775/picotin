@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use anyhow::Context;
 use unshare::{Command, GidMap, Namespace, UidMap};
 
 use crate::engine::ContainerConfig;
@@ -39,7 +40,10 @@ impl ContainerNamespaces {
             );
 
         if let Some(root) = &self.root {
-            command.chroot_dir(root);
+            command.chroot_dir(
+                root.canonicalize()
+                    .with_context(|| format!("canonicalize {root:?}"))?,
+            );
             // We are not using pivot_root here, since that without overlayfs,
             // we cannot guarantee that self.root is a mount point whose device
             // is different from the current root directory.

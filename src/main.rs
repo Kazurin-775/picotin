@@ -23,6 +23,9 @@ pub enum Commands {
         #[arg(long)]
         mem_mib: Option<u64>,
 
+        #[arg(long)]
+        no_unshare_net: bool,
+
         command: Option<PathBuf>,
     },
     Link {
@@ -42,6 +45,7 @@ fn main() -> anyhow::Result<()> {
             root,
             cpu_mul,
             mem_mib,
+            no_unshare_net,
             command,
         } => {
             let config = engine::ContainerConfig {
@@ -49,6 +53,7 @@ fn main() -> anyhow::Result<()> {
                 command,
                 cpu_mul,
                 mem_mib,
+                unshare_net: !no_unshare_net,
             };
             let container = Container::new(config).context("create container")?;
             container.run().context("run container")?;

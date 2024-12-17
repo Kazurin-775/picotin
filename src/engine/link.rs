@@ -1,7 +1,6 @@
 use std::{
     fs::File,
     net::{IpAddr, Ipv4Addr},
-    os::fd::AsRawFd,
     path::PathBuf,
     sync::Arc,
 };
@@ -164,7 +163,7 @@ async fn assign_ip_addr_in_ns(
     let new_ns = File::open(format!("/proc/{pid}/ns/net"))
         .with_context(|| format!("open /proc/{pid}/ns/net"))?;
 
-    nix::sched::setns(new_ns.as_raw_fd(), CloneFlags::CLONE_NEWNET)
+    nix::sched::setns(new_ns, CloneFlags::CLONE_NEWNET)
         .context("switch to new network namespace")?;
 
     // The netlink socket must be reopened inside the new namespace
@@ -179,7 +178,7 @@ async fn assign_ip_addr_in_ns(
         .await
         .context("rtnetlink call")?;
 
-    nix::sched::setns(old_ns.as_raw_fd(), CloneFlags::CLONE_NEWNET)
+    nix::sched::setns(old_ns, CloneFlags::CLONE_NEWNET)
         .context("switch to old network namespace")?;
 
     Ok(())

@@ -9,6 +9,7 @@ use anyhow::Context;
 use async_executor::Executor;
 use futures_util::TryStreamExt;
 use nix::sched::CloneFlags;
+use rtnetlink::{LinkUnspec, LinkVeth};
 
 pub fn add_veth_link(lhs: &str, rhs: &str) -> anyhow::Result<()> {
     anyhow::ensure!(
@@ -80,8 +81,7 @@ async fn create_veth(
     log::debug!("Creating veth-{lhs} and veth-{rhs}");
     handle
         .link()
-        .add()
-        .veth(format!("veth-{lhs}"), format!("veth-{rhs}"))
+        .add(LinkVeth::new(&format!("veth-{lhs}"), &format!("veth-{rhs}")).build())
         .execute()
         .await
         .context("create veth")?;
@@ -110,9 +110,12 @@ async fn create_veth(
     log::debug!("Associating veth-{lhs} (index {lhs_if_idx}) with netns of PID {lhs_pid}");
     handle
         .link()
-        .set(lhs_if_idx)
-        .up()
-        .setns_by_pid(lhs_pid)
+        .set(
+            LinkUnspec::new_with_index(lhs_if_idx)
+                .up()
+                .setns_by_pid(lhs_pid)
+                .build(),
+        )
         .execute()
         .await
         .context("set lhs's netns")?;
@@ -120,9 +123,12 @@ async fn create_veth(
     log::debug!("Associating veth-{rhs} (index {rhs_if_idx}) with netns of PID {rhs_pid}");
     handle
         .link()
-        .set(rhs_if_idx)
-        .up()
-        .setns_by_pid(rhs_pid)
+        .set(
+            LinkUnspec::new_with_index(rhs_if_idx)
+                .up()
+                .setns_by_pid(rhs_pid)
+                .build(),
+        )
         .execute()
         .await
         .context("set rhs's netns")?;
